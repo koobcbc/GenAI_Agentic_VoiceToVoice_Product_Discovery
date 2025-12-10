@@ -212,7 +212,7 @@ with col1:
         user_input = st.text_area(
             "Enter your question:",
             height=100,
-            placeholder="e.g., I need an eco-friendly stainless-steel cleaner under $15"
+            placeholder="e.g., I need a puzzle under $15"
         )
         submit_button = st.button("Submit", type="primary", use_container_width=True)
         

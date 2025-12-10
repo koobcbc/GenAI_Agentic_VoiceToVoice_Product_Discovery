@@ -55,7 +55,7 @@ def get_resources():
 
 def search_products(
     query: str,
-    top_k: int = 5,
+    top_k: int = 3,
     max_price: float | None = None,
     min_rating: float | None = None,
     ingredient_contains: str | None = None,
@@ -136,7 +136,7 @@ def search_products(
 @dataclass
 class RagSearchInput:
     query: str
-    top_k: int = 5
+    top_k: int = 3
     max_price: Optional[float] = None
     min_rating: Optional[float] = None
     brand: Optional[str] = None
@@ -167,7 +167,7 @@ def rag_search_tool(args: Dict[str, Any]) -> Dict[str, Any]:
     # 1. Parse Arguments
     params = RagSearchInput(
         query=args["query"],
-        top_k=int(args.get("top_k", 5)),
+        top_k=int(args.get("top_k", 3)),
         max_price=args.get("max_price"),
         min_rating=args.get("min_rating"),
         brand=args.get("brand"),
@@ -226,7 +226,7 @@ RAG_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
         "top_k": {
             "type": "integer",
             "description": "Number of products to retrieve.",
-            "default": 5,
+            "default": 3,
             "minimum": 1,
             "maximum": 20,
         },
