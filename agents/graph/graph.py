@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from typing import Optional, Dict, Any, List
 from langchain.agents.factory import create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from pretty_print import debug_all
 
 SERVER_HOST = '0.0.0.0'
 SERVER_PORT = 8001
@@ -272,7 +273,7 @@ async def async_get_retrieve_result(state: AgentState):
     system_prompt = f"""You are the Retrieval Agent. Your job is to fetch the information specified in the plan.
 
 Rules:
-• You MUST use retrieval_tool() to fetch data whenever retrieval is required by the plan.
+• You MUST use relevant tools to fetch data whenever retrieval is required by the plan.
 • Return ONLY the requested data in raw or minimally structured form (do NOT summarize or interpret it).
 • If the requested data cannot be retrieved, respond EXACTLY: "No data found."
 • If the plan does not require retrieval, respond EXACTLY: "Retrieval not applicable."
@@ -287,6 +288,7 @@ Your response MUST follow this format:
 """
 
     response = await agent.ainvoke({"messages": [{"role": "user", "content": system_prompt}]})
+    # debug_all(state, system_prompt, response)
 
     final_ai = get_final_ai_message(response)
     tool_msgs = get_tool_messages(response)
@@ -361,10 +363,10 @@ graph.add_conditional_edges(
 
 app = graph.compile()
 
-# if __name__ == "__main__":
-#     result = asyncio.run(
-#         app.ainvoke({"input": "I need an eco-friendly stainless-steel cleaner under $15"})
-#     )
+if __name__ == "__main__":
+    result = asyncio.run(
+        app.ainvoke({"input": "I want to find a stuffed animal for kids less than $30"})
+    )
 #     print("\n================ FINAL ANSWER ===============")
 #     print(result.get("response"))
 #     print("============================================\n")
