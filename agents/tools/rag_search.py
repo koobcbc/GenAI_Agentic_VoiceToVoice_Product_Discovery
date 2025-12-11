@@ -12,7 +12,6 @@ Original file is located at
 # rag_search.py
 
 from __future__ import annotations
-from fastmcp import FastMCP
 
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
@@ -58,6 +57,8 @@ def search_products(
     query: str,
     top_k: int = 3,
     max_price: float | None = None,
+    min_price: float | None = None,
+    max_rating: float | None = None,
     min_rating: float | None = None,
     ingredient_contains: str | None = None,
 ):
@@ -67,14 +68,17 @@ def search_products(
     """
     collection, model = get_resources()
     query_embedding = model.encode([query]).tolist()
-
+    max_price = 30.0
     # 1. Build Metadata Filters (Pre-filtering)
     conditions = []
     if max_price is not None:
         conditions.append({"price": {"$lte": float(max_price)}})
+    if min_price is not None:
+        conditions.append({"price": {"$gte": float(min_price)}})
+    if max_rating is not None:
+        conditions.append({"rating": {"$lte": float(max_rating)}})
     if min_rating is not None:
         conditions.append({"rating": {"$gte": float(min_rating)}})
-
     if len(conditions) == 0:
         where_filter = None
     elif len(conditions) == 1:
@@ -139,6 +143,8 @@ class RagSearchInput:
     query: str
     top_k: int = 3
     max_price: Optional[float] = None
+    min_price: Optional[float] = None
+    max_rating: Optional[float] = None
     min_rating: Optional[float] = None
     brand: Optional[str] = None
 
@@ -160,35 +166,33 @@ class RagSearchOutput:
 # -------------------------------------------------------------------------
 # MCP Tool Adapter
 # -------------------------------------------------------------------------
-def rag_search_tool(
-    query: str,
-    top_k: int = 3,
-    max_price: float = None,
-    min_rating: float = None,
-    brand: str = None
-) -> Dict[str, Any]:
+def rag_search_tool(args: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Entrypoint for the 'rag.search' MCP tool.
-    MCP will pass named arguments, so define them explicitly.
+    Entrypoint for the 'rag.search' tool.
+    Maps arguments to the search engine and formats the output.
     """
     # 1. Parse Arguments
     params = RagSearchInput(
-        query=query,
-        top_k=top_k,
-        max_price=max_price,
-        min_rating=min_rating,
-        brand=brand
+        query=args["query"],
+        top_k=int(args.get("top_k", 3)),
+        max_price=args.get("max_price"),
+        min_price=args.get("min_price"),
+        max_rating=args.get("max_rating"),
+        min_rating=args.get("min_rating"),
+        brand=args.get("brand"),
     )
 
-    # 2. Augment Query
-    search_query = f"{brand} {query}" if brand else query
+    # 2. Augment Query (Include brand in semantic search)
+    search_query = f"{params.brand} {params.query}" if params.brand else params.query
 
     # 3. Execute Search
     results = search_products(
         query=search_query,
-        top_k=top_k,
-        max_price=max_price,
-        min_rating=min_rating,
+        top_k=params.top_k,
+        max_price=params.max_price,
+        min_price=params.min_price,
+        max_rating=params.max_rating,
+        min_rating=params.min_rating
     )
 
     # 4. Format Output
@@ -211,11 +215,15 @@ def rag_search_tool(
                 brand=meta.get("brand"),
                 category=meta.get("category"),
                 doc_id=str(ids[i]),
-                score=float(dist),
+                score=float(dist)
             )
             products.append(p)
 
-    return {"products": [asdict(p) for p in products]}
+    # print("RAG search results: ", products)
+    
+    return {
+        "products": [asdict(p) for p in products]
+    }
 
 # -------------------------------------------------------------------------
 # JSON Schemas
@@ -238,6 +246,16 @@ RAG_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
         "max_price": {
             "type": "number",
             "description": "Optional maximum price filter.",
+        },
+        "min_price": {
+            "type": "number",
+            "description": "Optional minimum price filter.",
+        },
+        "max_rating": {
+            "type": "number",
+            "description": "Optional maximum rating filter (0–5 scale).",
+            "minimum": 0,
+            "maximum": 5,
         },
         "min_rating": {
             "type": "number",
@@ -278,3 +296,8 @@ RAG_SEARCH_OUTPUT_SCHEMA: Dict[str, Any] = {
     "required": ["products"],
 }
 
+# print(search_products(
+#         query="I want to find a stuffed animal for kids less than $30",
+#         top_k=3,
+#         max_price=30.0
+#     ))

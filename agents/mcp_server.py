@@ -151,6 +151,8 @@ def process_mcp_message(message: Dict[str, Any]) -> Dict[str, Any]:
     """
     method = message.get("method")
     
+    print(f"Processing MCP message: {method}")
+    
     if method == "initialize":
         return handle_initialize(message)
     elif method == "tools/list":
