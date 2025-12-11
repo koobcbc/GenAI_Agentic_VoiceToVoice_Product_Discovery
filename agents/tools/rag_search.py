@@ -164,9 +164,7 @@ def rag_search_tool(
     query: str,
     top_k: int = 3,
     max_price: float = None,
-    min_price: float = None,
     min_rating: float = None,
-    max_rating: float = None,
     brand: str = None
 ) -> Dict[str, Any]:
     """
@@ -243,17 +241,7 @@ RAG_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
         },
         "min_rating": {
             "type": "number",
-            "description": "Optional minimum rating filter (0-5 scale).",
-            "minimum": 0,
-            "maximum": 5,
-        },
-        "min_price": {
-            "type": "number",
-            "description": "Optional minimum price filter.",
-        },
-        "max_rating": {
-            "type": "number",
-            "description": "Optional maximum rating filter (0-5 scale).",
+            "description": "Optional minimum rating filter (0–5 scale).",
             "minimum": 0,
             "maximum": 5,
         },
@@ -290,4 +278,3 @@ RAG_SEARCH_OUTPUT_SCHEMA: Dict[str, Any] = {
     "required": ["products"],
 }
 
-rag_search_tool("I want to get a stuffed animal for kids under $30", max_price=30.0)
