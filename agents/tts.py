@@ -1,7 +1,6 @@
 import asyncio
 from openai.helpers import LocalAudioPlayer
-from pathlib import Path
-from openai import OpenAI, AsyncOpenAI
+from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()

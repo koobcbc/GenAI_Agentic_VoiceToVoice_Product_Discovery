@@ -1,8 +1,24 @@
+import asyncio
 from langgraph.graph import StateGraph, END, START
 from langchain_core.tools import tool
 import os
 from dotenv import load_dotenv
 from typing import Optional, Dict, Any, List
+from langchain.agents.factory import create_agent
+from langchain_mcp_adapters.client import MultiServerMCPClient
+import json
+import re
+
+SERVER_HOST = '0.0.0.0'
+SERVER_PORT = 8001
+SERVER_URL = f'http://{SERVER_HOST}:{SERVER_PORT}'
+MCP_SERVERS = {
+        "my_server": {
+            "url": SERVER_URL+"/mcp",
+            "transport": "http",
+        },
+    }
+
 
 import requests  # to call MCP HTTP server
 
@@ -74,6 +90,8 @@ class AgentState(dict):
     plan: Optional[str]
     knowledge: Optional[str]   # text based on MCP results
 
+    retrieved_context: Optional[List[Dict[str, Any]]]
+
 
 # ============================================================
 # Retrieval Tool (MCP-backed)
@@ -104,8 +122,10 @@ def retrieval_tool(query: str) -> str:
     # ----- 1) Call rag.search (private catalog) -----
     rag_args: Dict[str, Any] = {
         "query": query,
-        "top_k": 5,
+        "top_k": 3,
         "max_price": None,
+        "min_price": None,
+        "max_rating": None,
         "min_rating": None,
         "brand": None,
     }
@@ -218,6 +238,15 @@ Your response MUST follow this format:
 * Data Source (private / live / both):
 * Fields to Retrieve:
 * Comparison Criteria:
+  [
+    {{
+      "attribute": "...",
+      "type" ("qualitative" or "quantitative"): "...",
+      "value": ...,
+      "operator" ("eq", "gt", "lt", "gte", "lte"): "..." (optional if type is "qualitative")
+    }},
+    ...
+  ]
 """
 
     response = llm.invoke(system_prompt)
@@ -229,18 +258,198 @@ Your response MUST follow this format:
 # Retriever Node (directly calls retrieval_tool → MCP)
 # ============================================================
 
-def retrieve_node(state: AgentState) -> Dict[str, Any]:
-    print("Retriever NODE Started")
+from langchain_core.messages import AIMessage, ToolMessage
+
+def get_final_ai_message(response):
+    msgs = response["messages"]
+    for msg in reversed(msgs):
+        if isinstance(msg, AIMessage):
+            return msg
+    return None
+
+def get_tool_messages(response):
+    msgs = response["messages"]
+    return [m for m in msgs if isinstance(m, ToolMessage)]
+
+def parse_comparison_criteria(plan_text: str) -> List[Dict[str, Any]]:
+    """
+    Parse comparison criteria from planner's plan text.
+    Extracts the JSON array from the "Comparison Criteria:" section.
+    
+    Returns:
+        List of criteria dictionaries with: attribute, type, value, operator
+    """
+    try:
+        # Find the "Comparison Criteria:" section
+        criteria_match = re.search(r'\* Comparison Criteria:\s*\n\s*(\[.*?\])', plan_text, re.DOTALL)
+        if not criteria_match:
+            print("[parse_comparison_criteria] No comparison criteria found in plan")
+            return []
+        
+        criteria_json = criteria_match.group(1)
+        # Clean up the JSON string (remove markdown code blocks if any)
+        criteria_json = criteria_json.strip()
+        if criteria_json.startswith('```'):
+            criteria_json = re.sub(r'?\s*', '', criteria_json)
+            criteria_json = re.sub(r'```\s*$', '', criteria_json)
+        
+        criteria_list = json.loads(criteria_json)
+        print(f"[parse_comparison_criteria] Parsed {len(criteria_list)} criteria")
+        return criteria_list
+    except json.JSONDecodeError as e:
+        print(f"[parse_comparison_criteria] JSON decode error: {e}")
+        return []
+    except Exception as e:
+        print(f"[parse_comparison_criteria] Error parsing criteria: {e}")
+        return []
+    
+def criteria_to_rag_params(criteria_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Convert comparison criteria to rag.search tool parameters.
+    
+    Mapping:
+    - price with lt/lte → max_price
+    - price with gt/gte → min_price
+    - rating with lte → max_rating
+    - rating with gte → min_rating
+    
+    Returns:
+        Dictionary with rag.search parameters
+    """
+    params: Dict[str, Any] = {}
+    
+    for criterion in criteria_list:
+        if criterion.get("type") != "quantitative":
+            continue
+        
+        attribute = criterion.get("attribute", "").lower()
+        operator = criterion.get("operator", "").lower()
+        value = criterion.get("value")
+        
+        if not value:
+            continue
+        
+        # Handle price criteria
+        if attribute in ["price", "cost", "budget"]:
+            if operator in ["lt", "lte"]:
+                # Less than or equal → max_price
+                try:
+                    price_val = float(value) if isinstance(value, (int, float, str)) else None
+                    if price_val is not None:
+                        params["max_price"] = price_val
+                        print(f"[criteria_to_rag_params] Set max_price={price_val} from {attribute} {operator}")
+                except (ValueError, TypeError):
+                    pass
+            elif operator in ["gt", "gte"]:
+                # Greater than or equal → min_price
+                try:
+                    price_val = float(value) if isinstance(value, (int, float, str)) else None
+                    if price_val is not None:
+                        params["min_price"] = price_val
+                        print(f"[criteria_to_rag_params] Set min_price={price_val} from {attribute} {operator}")
+                except (ValueError, TypeError):
+                    pass
+                
+        # Handle rating criteria
+        elif attribute in ["rating", "stars", "review_score"]:
+            if operator in ["gte", ">="]:
+                try:
+                    rating_val = float(value) if isinstance(value, (int, float, str)) else None
+                    if rating_val is not None:
+                        params["min_rating"] = rating_val
+                        print(f"[criteria_to_rag_params] Set min_rating={rating_val} from {attribute} {operator}")
+                except (ValueError, TypeError):
+                    pass
+            elif operator in ["lte", "<="]:
+                try:
+                    rating_val = float(value) if isinstance(value, (int, float, str)) else None
+                    if rating_val is not None:
+                        params["max_rating"] = rating_val
+                        print(f"[criteria_to_rag_params] Set max_rating={rating_val} from {attribute} {operator}")
+                except (ValueError, TypeError):
+                    pass
+        
+        # Handle brand criteria
+        elif attribute in ["brand", "manufacturer"]:
+            if operator == "eq" or not operator:
+                if isinstance(value, str):
+                    params["brand"] = value
+                    print(f"[criteria_to_rag_params] Set brand={value}")
+                    
+        params["top_k"] = 3
+    
+    return params
+
+async def async_get_retrieve_result(state: AgentState):
+    client = MultiServerMCPClient(MCP_SERVERS)
+    tools = await client.get_tools()
+
+    agent = create_agent(
+        model=llm,
+        tools=tools
+    )
 
     plan = state.get("plan", "No plan provided")
+    # Parse comparison criteria from plan
+    criteria_list = parse_comparison_criteria(plan)
+    rag_params = criteria_to_rag_params(criteria_list)
+    
+    # Build enhanced system prompt with parsed parameters
+    params_description = ""
+    if rag_params:
+        params_list = []
+        if "max_price" in rag_params:
+            params_list.append(f"max_price={rag_params['max_price']}")
+        if "min_price" in rag_params:
+            params_list.append(f"min_price={rag_params['min_price']}")
+        if "min_rating" in rag_params:
+            params_list.append(f"min_rating={rag_params['min_rating']}")
+        if "max_rating" in rag_params:
+            params_list.append(f"max_rating={rag_params['max_rating']}")
+        if "brand" in rag_params:
+            params_list.append(f"brand='{rag_params['brand']}'")
+        if "top_k" in rag_params:
+            params_list.append(f"top_k={rag_params['top_k']}")
+        
+        if params_list:
+            params_description = f"\n\nIMPORTANT: When calling rag.search, you MUST use these parameters: {', '.join(params_list)}"
+            
+    system_prompt = f"""You are the Retrieval Agent. Your job is to fetch the information specified in the plan.
 
-    # Simple: treat the plan as the query for retrieval_tool
-    query = f"Retrieve products based on this plan:\n{plan}"
-    knowledge_text = retrieval_tool(query)
+Rules:
+• You MUST use retrieval_tool() to fetch data whenever retrieval is required by the plan.
+• Return ONLY the requested data in raw or minimally structured form (do NOT summarize or interpret it).
+• If the requested data cannot be retrieved, respond EXACTLY: "No data found."
+• If the plan does not require retrieval, respond EXACTLY: "Retrieval not applicable."
 
-    print("retrieve response: ", knowledge_text)
-    return {"knowledge": knowledge_text}
+Plan Details:
+{plan}{params_description}
 
+Your response MUST follow this format:
+
+* Retrieved data:
+<insert data here or the exact required message>
+"""
+
+    response = await agent.ainvoke({"messages": [{"role": "user", "content": system_prompt}]})
+
+    final_ai = get_final_ai_message(response)
+    tool_msgs = get_tool_messages(response)
+    
+    print("Retriever response: ", response)
+
+    return final_ai, tool_msgs
+
+
+async def retrieve_node(state: AgentState):
+    print("Retriever NODE Started")
+
+    final_ai, tool_msgs = await async_get_retrieve_result(state)
+    
+    return {
+        "knowledge": final_ai.content if final_ai else None,
+        "retrieved_context": [msg.content for msg in tool_msgs]
+    }
 
 # ============================================================
 # Answer / Critic Node
@@ -299,10 +508,10 @@ graph.add_conditional_edges(
 
 app = graph.compile()
 
-if __name__ == "__main__":
-    result = app.invoke(
-        {"input": "I need an eco-friendly stainless-steel cleaner under $15"}
-    )
-    print("\n================ FINAL ANSWER ===============")
-    print(result.get("response"))
-    print("============================================\n")
+# if __name__ == "__main__":
+#     result = asyncio.run(
+#         app.ainvoke({"input": "I need an eco-friendly stainless-steel cleaner under $15"})
+#     )
+#     print("\n================ FINAL ANSWER ===============")
+#     print(result.get("response"))
+#     print("============================================\n")

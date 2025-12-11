@@ -57,6 +57,8 @@ def search_products(
     query: str,
     top_k: int = 3,
     max_price: float | None = None,
+    min_price: float | None = None,
+    max_rating: float | None = None,
     min_rating: float | None = None,
     ingredient_contains: str | None = None,
 ):
@@ -66,14 +68,17 @@ def search_products(
     """
     collection, model = get_resources()
     query_embedding = model.encode([query]).tolist()
-
+    max_price = 30.0
     # 1. Build Metadata Filters (Pre-filtering)
     conditions = []
     if max_price is not None:
         conditions.append({"price": {"$lte": float(max_price)}})
+    if min_price is not None:
+        conditions.append({"price": {"$gte": float(min_price)}})
+    if max_rating is not None:
+        conditions.append({"rating": {"$lte": float(max_rating)}})
     if min_rating is not None:
         conditions.append({"rating": {"$gte": float(min_rating)}})
-
     if len(conditions) == 0:
         where_filter = None
     elif len(conditions) == 1:
@@ -138,6 +143,8 @@ class RagSearchInput:
     query: str
     top_k: int = 3
     max_price: Optional[float] = None
+    min_price: Optional[float] = None
+    max_rating: Optional[float] = None
     min_rating: Optional[float] = None
     brand: Optional[str] = None
 
@@ -169,6 +176,8 @@ def rag_search_tool(args: Dict[str, Any]) -> Dict[str, Any]:
         query=args["query"],
         top_k=int(args.get("top_k", 3)),
         max_price=args.get("max_price"),
+        min_price=args.get("min_price"),
+        max_rating=args.get("max_rating"),
         min_rating=args.get("min_rating"),
         brand=args.get("brand"),
     )
@@ -181,6 +190,8 @@ def rag_search_tool(args: Dict[str, Any]) -> Dict[str, Any]:
         query=search_query,
         top_k=params.top_k,
         max_price=params.max_price,
+        min_price=params.min_price,
+        max_rating=params.max_rating,
         min_rating=params.min_rating
     )
 
@@ -208,6 +219,8 @@ def rag_search_tool(args: Dict[str, Any]) -> Dict[str, Any]:
             )
             products.append(p)
 
+    # print("RAG search results: ", products)
+    
     return {
         "products": [asdict(p) for p in products]
     }
@@ -233,6 +246,16 @@ RAG_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
         "max_price": {
             "type": "number",
             "description": "Optional maximum price filter.",
+        },
+        "min_price": {
+            "type": "number",
+            "description": "Optional minimum price filter.",
+        },
+        "max_rating": {
+            "type": "number",
+            "description": "Optional maximum rating filter (0–5 scale).",
+            "minimum": 0,
+            "maximum": 5,
         },
         "min_rating": {
             "type": "number",
@@ -273,3 +296,8 @@ RAG_SEARCH_OUTPUT_SCHEMA: Dict[str, Any] = {
     "required": ["products"],
 }
 
+# print(search_products(
+#         query="I want to find a stuffed animal for kids less than $30",
+#         top_k=3,
+#         max_price=30.0
+#     ))

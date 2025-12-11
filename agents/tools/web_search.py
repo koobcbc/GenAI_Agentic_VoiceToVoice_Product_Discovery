@@ -161,28 +161,15 @@ def _call_serper_shopping(query: str, max_results: int = 5) -> List[Dict[str, An
 
     return sorted_results[:max_results]
 
-def web_search_tool(args: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    MCP tool entrypoint for `web.search`.
-
-    Expected args:
-      {
-        "query": "eco friendly stainless steel cleaner",
-        "max_results": 5,
-        "mode": "shopping" | "web"
-      }
-    """
-    raw_query: str = args["query"]
+def web_search_tool( query: str, max_results: int = 5, mode: str = "shopping") -> Dict[str, Any]:
+    raw_query = query
     cleaned_query = _clean_title_for_search(raw_query)
     query = cleaned_query if cleaned_query else raw_query
-
-    max_results: int = int(args.get("max_results", 5))
-    mode: str = args.get("mode", "shopping")  # default: shopping 
 
     if not SERPER_API_KEY:
         return {
             "results": [],
-            "note": "SERPER_API_KEY not set. Please configure API key in environment.",
+            "note": "SERPER_API_KEY not set."
         }
 
     if mode == "shopping":
@@ -190,10 +177,7 @@ def web_search_tool(args: Dict[str, Any]) -> Dict[str, Any]:
     else:
         results = _call_serper_search(query, max_results=max_results)
 
-    return {
-        "results": results,
-        "note": None,
-    }
+    return {"results": results, "note": None}
 
 WEB_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
