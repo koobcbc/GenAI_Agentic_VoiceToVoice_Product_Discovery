@@ -1,12 +1,4 @@
 import whisper
-import torch
-import librosa
-import librosa.display
-import matplotlib.pyplot as plt
-import numpy as np
-import sounddevice as sd
-from scipy.io.wavfile import write
-import wavio as wv
 import os
 
 # File relative to current script

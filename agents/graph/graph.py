@@ -1,8 +1,22 @@
+import asyncio
 from langgraph.graph import StateGraph, END, START
 from langchain_core.tools import tool
 import os
 from dotenv import load_dotenv
 from typing import Optional, Dict, Any, List
+from langchain.agents.factory import create_agent
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+SERVER_HOST = '0.0.0.0'
+SERVER_PORT = 8001
+SERVER_URL = f'http://{SERVER_HOST}:{SERVER_PORT}'
+MCP_SERVERS = {
+        "my_server": {
+            "url": SERVER_URL+"/mcp",
+            "transport": "http",
+        },
+    }
+
 
 import requests  # to call MCP HTTP server
 
@@ -73,6 +87,8 @@ class AgentState(dict):
     intent: Optional[str]
     plan: Optional[str]
     knowledge: Optional[str]   # text based on MCP results
+
+    retrieved_context: Optional[List[Dict[str, Any]]]
 
 
 # ============================================================
@@ -229,18 +245,64 @@ Your response MUST follow this format:
 # Retriever Node (directly calls retrieval_tool → MCP)
 # ============================================================
 
-def retrieve_node(state: AgentState) -> Dict[str, Any]:
-    print("Retriever NODE Started")
+from langchain_core.messages import AIMessage, ToolMessage
+
+def get_final_ai_message(response):
+    msgs = response["messages"]
+    for msg in reversed(msgs):
+        if isinstance(msg, AIMessage):
+            return msg
+    return None
+
+def get_tool_messages(response):
+    msgs = response["messages"]
+    return [m for m in msgs if isinstance(m, ToolMessage)]
+
+
+async def async_get_retrieve_result(state: AgentState):
+    client = MultiServerMCPClient(MCP_SERVERS)
+    tools = await client.get_tools()
+
+    agent = create_agent(
+        model=llm,
+        tools=tools
+    )
 
     plan = state.get("plan", "No plan provided")
+    system_prompt = f"""You are the Retrieval Agent. Your job is to fetch the information specified in the plan.
 
-    # Simple: treat the plan as the query for retrieval_tool
-    query = f"Retrieve products based on this plan:\n{plan}"
-    knowledge_text = retrieval_tool(query)
+Rules:
+• You MUST use retrieval_tool() to fetch data whenever retrieval is required by the plan.
+• Return ONLY the requested data in raw or minimally structured form (do NOT summarize or interpret it).
+• If the requested data cannot be retrieved, respond EXACTLY: "No data found."
+• If the plan does not require retrieval, respond EXACTLY: "Retrieval not applicable."
 
-    print("retrieve response: ", knowledge_text)
-    return {"knowledge": knowledge_text}
+Plan Details:
+{plan}
 
+Your response MUST follow this format:
+
+* Retrieved data:
+<insert data here or the exact required message>
+"""
+
+    response = await agent.ainvoke({"messages": [{"role": "user", "content": system_prompt}]})
+
+    final_ai = get_final_ai_message(response)
+    tool_msgs = get_tool_messages(response)
+
+    return final_ai, tool_msgs
+
+
+async def retrieve_node(state: AgentState):
+    print("Retriever NODE Started")
+
+    final_ai, tool_msgs = await async_get_retrieve_result(state)
+
+    return {
+        "knowledge": final_ai.content if final_ai else None,
+        "retrieved_context": [msg.content for msg in tool_msgs]
+    }
 
 # ============================================================
 # Answer / Critic Node
@@ -299,10 +361,10 @@ graph.add_conditional_edges(
 
 app = graph.compile()
 
-if __name__ == "__main__":
-    result = app.invoke(
-        {"input": "I need an eco-friendly stainless-steel cleaner under $15"}
-    )
-    print("\n================ FINAL ANSWER ===============")
-    print(result.get("response"))
-    print("============================================\n")
+# if __name__ == "__main__":
+#     result = asyncio.run(
+#         app.ainvoke({"input": "I need an eco-friendly stainless-steel cleaner under $15"})
+#     )
+#     print("\n================ FINAL ANSWER ===============")
+#     print(result.get("response"))
+#     print("============================================\n")

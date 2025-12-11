@@ -12,6 +12,7 @@ Original file is located at
 # rag_search.py
 
 from __future__ import annotations
+from fastmcp import FastMCP
 
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
@@ -159,29 +160,35 @@ class RagSearchOutput:
 # -------------------------------------------------------------------------
 # MCP Tool Adapter
 # -------------------------------------------------------------------------
-def rag_search_tool(args: Dict[str, Any]) -> Dict[str, Any]:
+def rag_search_tool(
+    query: str,
+    top_k: int = 3,
+    max_price: float = None,
+    min_rating: float = None,
+    brand: str = None
+) -> Dict[str, Any]:
     """
-    Entrypoint for the 'rag.search' tool.
-    Maps arguments to the search engine and formats the output.
+    Entrypoint for the 'rag.search' MCP tool.
+    MCP will pass named arguments, so define them explicitly.
     """
     # 1. Parse Arguments
     params = RagSearchInput(
-        query=args["query"],
-        top_k=int(args.get("top_k", 3)),
-        max_price=args.get("max_price"),
-        min_rating=args.get("min_rating"),
-        brand=args.get("brand"),
+        query=query,
+        top_k=top_k,
+        max_price=max_price,
+        min_rating=min_rating,
+        brand=brand
     )
 
-    # 2. Augment Query (Include brand in semantic search)
-    search_query = f"{params.brand} {params.query}" if params.brand else params.query
+    # 2. Augment Query
+    search_query = f"{brand} {query}" if brand else query
 
     # 3. Execute Search
     results = search_products(
         query=search_query,
-        top_k=params.top_k,
-        max_price=params.max_price,
-        min_rating=params.min_rating
+        top_k=top_k,
+        max_price=max_price,
+        min_rating=min_rating,
     )
 
     # 4. Format Output
@@ -204,13 +211,11 @@ def rag_search_tool(args: Dict[str, Any]) -> Dict[str, Any]:
                 brand=meta.get("brand"),
                 category=meta.get("category"),
                 doc_id=str(ids[i]),
-                score=float(dist)
+                score=float(dist),
             )
             products.append(p)
 
-    return {
-        "products": [asdict(p) for p in products]
-    }
+    return {"products": [asdict(p) for p in products]}
 
 # -------------------------------------------------------------------------
 # JSON Schemas

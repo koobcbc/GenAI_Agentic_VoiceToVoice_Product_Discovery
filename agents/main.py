@@ -10,11 +10,20 @@ def main():
     print("Final Transcription Output:")
     print(transcription)
 
-    answer = app.invoke({"input": transcription})['response']
-    print(answer)
+
+    answer = asyncio.run(
+        app.ainvoke({"input": transcription})
+    )
+    response = answer['response']
+    retrieved_context = answer['retrieved_context']
+    print("================ FINAL ANSWER ===============")
+    print(response)
+    print("================ RETRIEVED CONTEXT ===============")
+    print(retrieved_context)
+
 
     # test = "Today is a wonderful day to build something people love!"
-    asyncio.run(run_tts(answer))
+    asyncio.run(run_tts(response))
 
 
 
