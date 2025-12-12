@@ -70,7 +70,7 @@ def process_query(user_input: str, use_tts: bool = False):
     """Process user query through the graph and optionally use TTS"""
     try:
         # Process through graph
-        result = graph_app.invoke({"input": user_input})
+        result = asyncio.run(graph_app.ainvoke({"input": user_input}))
         response = result.get('response', 'No response generated')
         
         # Optionally run TTS

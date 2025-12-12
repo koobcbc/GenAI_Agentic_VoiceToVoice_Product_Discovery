@@ -57,9 +57,9 @@ def get_resources():
 def search_products(
     query: str,
     top_k: int = 3,
-    max_price: float | None = None,
-    min_rating: float | None = None,
-    ingredient_contains: str | None = None,
+    price: str = None,
+    rating: str = None,
+    # ingredient_contains: str = None,
 ):
     """
     Executes semantic search with metadata pre-filtering (price/rating)
@@ -68,66 +68,81 @@ def search_products(
     collection, model = get_resources()
     query_embedding = model.encode([query]).tolist()
 
-    # 1. Build Metadata Filters (Pre-filtering)
-    conditions = []
-    if max_price is not None:
-        conditions.append({"price": {"$lte": float(max_price)}})
-    if min_rating is not None:
-        conditions.append({"rating": {"$gte": float(min_rating)}})
+    where_filter = {}
+    
+    if price:
+        where_filter['price'] = price
+    if rating:
+        where_filter['rating'] = rating
+    # if ingredient_contains:
+    #     where_filter['ingredients'] = ingredient_contains
 
-    if len(conditions) == 0:
-        where_filter = None
-    elif len(conditions) == 1:
-        where_filter = conditions[0]
-    else:
-        where_filter = {"$and": conditions}
+    # # 1. Build Metadata Filters (Pre-filtering)
+    # conditions = []
+    # if max_price is not None:
+    #     conditions.append({"price": {"$lte": float(max_price)}})
+    # if min_rating is not None:
+    #     conditions.append({"rating": {"$gte": float(min_rating)}})
+
+    # if len(conditions) == 0:
+    #     where_filter = None
+    # elif len(conditions) == 1:
+    #     where_filter = conditions[0]
+    # else:
+    #     where_filter = {"$and": conditions}
+
 
     # 2. Fetch results (Over-fetch if ingredient filter is active)
-    fetch_k = top_k * 5 if ingredient_contains else top_k
+    # fetch_k = top_k * 5 if ingredient_contains else top_k
 
-    results = collection.query(
-        query_embeddings=query_embedding,
-        n_results=fetch_k,
-        where=where_filter
-    )
+    if where_filter:
+        results = collection.query(query_embeddings=query_embedding, where=where_filter, n_results=top_k)
+    else:
+        results = collection.query(query_embeddings=query_embedding, n_results=top_k)
+
+    # results = collection.query(
+    #     query_embeddings=query_embedding,
+    #     n_results=fetch_k,
+    #     where=where_filter
+    # )
 
     # 3. Post-processing (Ingredient substring match)
-    if ingredient_contains:
-        filtered_ids = []
-        filtered_metas = []
-        filtered_dists = []
+    # if ingredient_contains:
+    #     filtered_ids = []
+    #     filtered_metas = []
+    #     filtered_dists = []
 
-        if results['ids'] and len(results['ids'][0]) > 0:
-            current_ids = results['ids'][0]
-            current_metas = results['metadatas'][0]
-            # Handle cases where distances might be missing
-            current_dists = results.get('distances', [[0.0] * len(current_ids)])[0]
+    #     if results['ids'] and len(results['ids'][0]) > 0:
+    #         current_ids = results['ids'][0]
+    #         current_metas = results['metadatas'][0]
+    #         # Handle cases where distances might be missing
+    #         current_dists = results.get('distances', [[0.0] * len(current_ids)])[0]
 
-            count = 0
-            for i in range(len(current_ids)):
-                if count >= top_k: break
+    #         count = 0
+    #         for i in range(len(current_ids)):
+    #             if count >= top_k: break
 
-                meta = current_metas[i]
-                ingreds = str(meta.get("ingredients", "")).lower()
+    #             meta = current_metas[i]
+    #             ingreds = str(meta.get("ingredients", "")).lower()
 
-                if ingredient_contains.lower() in ingreds:
-                    filtered_ids.append(current_ids[i])
-                    filtered_metas.append(meta)
-                    filtered_dists.append(current_dists[i])
-                    count += 1
+    #             if ingredient_contains.lower() in ingreds:
+    #                 filtered_ids.append(current_ids[i])
+    #                 filtered_metas.append(meta)
+    #                 filtered_dists.append(current_dists[i])
+    #                 count += 1
 
-            # Update results with filtered list
-            results['ids'][0] = filtered_ids
-            results['metadatas'][0] = filtered_metas
-            if 'distances' in results:
-                results['distances'][0] = filtered_dists
+    #         # Update results with filtered list
+    #         results['ids'][0] = filtered_ids
+    #         results['metadatas'][0] = filtered_metas
+    #         if 'distances' in results:
+    #             results['distances'][0] = filtered_dists
 
-    elif results['ids'] and len(results['ids'][0]) > top_k:
+    # elif results['ids'] and len(results['ids'][0]) > top_k:
          # Trim to requested top_k
-         results['ids'][0] = results['ids'][0][:top_k]
-         results['metadatas'][0] = results['metadatas'][0][:top_k]
-         if results.get('distances'):
-             results['distances'][0] = results['distances'][0][:top_k]
+    results['ids'][0] = results['ids'][0][:top_k]
+    results['metadatas'][0] = results['metadatas'][0][:top_k]
+    if results.get('distances'):
+        results['distances'][0] = results['distances'][0][:top_k]
 
     return results
 
@@ -163,24 +178,27 @@ class RagSearchOutput:
 def rag_search_tool(
     query: str,
     top_k: int = 3,
-    max_price: float = None,
-    min_price: float = None,
-    min_rating: float = None,
-    max_rating: float = None,
+    # max_price: float = None,
+    # min_price: float = None,
+    # min_rating: float = None,
+    # max_rating: float = None,
+    price: str = None,
+    rating: str = None,
     brand: str = None
 ) -> Dict[str, Any]:
     """
     Entrypoint for the 'rag.search' MCP tool.
     MCP will pass named arguments, so define them explicitly.
     """
-    # 1. Parse Arguments
-    params = RagSearchInput(
-        query=query,
-        top_k=top_k,
-        max_price=max_price,
-        min_rating=min_rating,
-        brand=brand
-    )
+    # # 1. Parse Arguments
+    # params = RagSearchInput(
+    #     query=query,
+    #     top_k=top_k,
+    #     max_price=max_price,
+    #     min_rating=min_rating,
+    #     brand=brand
+    # )
+
 
     # 2. Augment Query
     search_query = f"{brand} {query}" if brand else query
@@ -189,8 +207,8 @@ def rag_search_tool(
     results = search_products(
         query=search_query,
         top_k=top_k,
-        max_price=max_price,
-        min_rating=min_rating,
+        price=price,
+        rating=rating,
     )
 
     # 4. Format Output
@@ -225,44 +243,67 @@ def rag_search_tool(
 RAG_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "title": "RagSearchInput",
+    "description": "Input schema for the RAG search tool that retrieves products based on natural-language queries and optional metadata filters.",
     "properties": {
         "query": {
             "type": "string",
-            "description": "Natural language query describing desired product(s).",
+            "description": "Natural language query describing the desired item(s)."
         },
         "top_k": {
             "type": "integer",
-            "description": "Number of products to retrieve.",
+            "description": "Maximum number of results to return.",
             "default": 3,
             "minimum": 1,
-            "maximum": 20,
+            "maximum": 20
         },
-        "max_price": {
-            "type": "number",
-            "description": "Optional maximum price filter.",
+
+        # -------------------------
+        # PRICE FILTER
+        # -------------------------
+        "price": {
+            "type": "object",
+            "description": (
+                "ChromaDB-style numeric filter for price. "
+                "Supported operators: $lt, $lte, $gt, $gte, $eq, $in. "
+                "Example: {'$lt': 30} or {'$in': [10, 20, 30]}."
+            ),
+            "properties": {
+                "$lt": {"type": "number"},
+                "$lte": {"type": "number"},
+                "$gt": {"type": "number"},
+                "$gte": {"type": "number"},
+                "$eq": {"type": "number"},
+                "$in": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 1
+                }
+            },
+            "additionalProperties": False
         },
-        "min_rating": {
-            "type": "number",
-            "description": "Optional minimum rating filter (0-5 scale).",
-            "minimum": 0,
-            "maximum": 5,
-        },
-        "min_price": {
-            "type": "number",
-            "description": "Optional minimum price filter.",
-        },
-        "max_rating": {
-            "type": "number",
-            "description": "Optional maximum rating filter (0-5 scale).",
-            "minimum": 0,
-            "maximum": 5,
+        "rating": {
+            "type": "object",
+            "description": (
+                "ChromaDB-style numeric filter for rating (0–5). "
+                "Supported operators: $lt, $lte, $gt, $gte, $eq."
+            ),
+            "properties": {
+                "$lt": {"type": "number", "minimum": 0, "maximum": 5},
+                "$lte": {"type": "number", "minimum": 0, "maximum": 5},
+                "$gt": {"type": "number", "minimum": 0, "maximum": 5},
+                "$gte": {"type": "number", "minimum": 0, "maximum": 5},
+                "$eq": {"type": "number", "minimum": 0, "maximum": 5}
+            },
+            "additionalProperties": False
         },
         "brand": {
             "type": "string",
-            "description": "Optional brand name filter.",
-        },
+            "description": "Optional exact or fuzzy brand name filter."
+        }
     },
+
     "required": ["query"],
+    "additionalProperties": False
 }
 
 RAG_SEARCH_OUTPUT_SCHEMA: Dict[str, Any] = {
@@ -290,4 +331,4 @@ RAG_SEARCH_OUTPUT_SCHEMA: Dict[str, Any] = {
     "required": ["products"],
 }
 
-rag_search_tool("I want to get a stuffed animal for kids under $30", max_price=30.0)
+# rag_search_tool(query='stuffed animal for kids', top_k= 3, price= "{'$lt': 30}")
