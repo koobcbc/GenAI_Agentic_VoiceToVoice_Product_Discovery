@@ -7,6 +7,8 @@ import tempfile
 import numpy as np
 from io import BytesIO
 import time
+import re
+import html
 
 # Optional audio libraries - only needed for recording functionality
 try:
@@ -157,16 +159,28 @@ def record_audio(duration=5):
         return f"Error recording audio: {str(e)}"
 
 def render_message(text: str):
-    url_pattern = r"(https?://\S+)"
+    """
+    Render message text with proper URL handling and word wrapping.
+    Long URLs are made clickable and wrapped to prevent overflow.
+    """
+    # Pattern to match URLs (including long ones)
+    url_pattern = r"(https?://[^\s<>\"']+)"
     
     def replace_url(match):
         url = match.group(0)
-        return f"<a href='{html.escape(url)}' target='_blank'>{html.escape(url)}</a>"
+        # Truncate very long URLs for display (keep first 80 chars)
+        display_url = url if len(url) <= 80 else url[:77] + "..."
+        return f'<a href="{html.escape(url)}" target="_blank" style="word-break: break-all; overflow-wrap: break-word;">{html.escape(display_url)}</a>'
     
+    # Escape HTML first
     escaped = html.escape(text)
+    # Replace URLs with clickable links
     linked = re.sub(url_pattern, replace_url, escaped)
-
-    st.markdown(linked, unsafe_allow_html=True)
+    
+    # Wrap in a div with word-break CSS to handle long URLs
+    wrapped = f'<div style="word-break: break-word; overflow-wrap: break-word; max-width: 100%;">{linked}</div>'
+    
+    st.markdown(wrapped, unsafe_allow_html=True)
 
 # Main UI
 st.title("🤖 AI Agent Assistant")
@@ -315,14 +329,32 @@ with col1:
     st.markdown("---")
     st.subheader("📜 Conversation History")
     
+    # Add CSS to prevent text overflow in chat messages
+    st.markdown("""
+    <style>
+    .stChatMessage {
+        max-width: 100%;
+    }
+    .stChatMessage > div {
+        word-break: break-word;
+        overflow-wrap: break-word;
+        max-width: 100%;
+    }
+    .stChatMessage a {
+        word-break: break-all;
+        overflow-wrap: break-word;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     if st.session_state.conversation_history:
         for i, message in enumerate(st.session_state.conversation_history):
             if message["role"] == "user":
                 with st.chat_message("user"):
-                    st.write(message["content"])
+                    render_message(message["content"])
             else:
                 with st.chat_message("assistant"):
-                    st.write(message["content"])
+                    render_message(message["content"])
         
         # Clear history button
         if st.button("Clear History", use_container_width=True):
