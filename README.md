@@ -24,40 +24,6 @@ A sophisticated multi-agent system built with LangGraph that enables voice-to-vo
 <img width="621" height="1411" alt="agent pipeline drawio" src="https://github.com/user-attachments/assets/d48df720-7651-4684-b7e7-2b455e897e49" />
 
 
-```
-┌─────────────────┐
-│  User Input     │ (Text/Voice)
-└────────┬────────┘
-         │
-    ┌────▼────┐
-    │ Whisper │ (ASR - if voice)
-    └────┬────┘
-         │
-    ┌────▼──────────────────────────────────────────────┐
-    │      LangGraph Agent Pipeline                     │
-    │  ┌──────────┐  ┌──────────┐                       │
-    │  │  Router  │─▶│  Planner │                       │
-    │  └──────────┘  └─────┬────┘                       │
-    │                      │                            │
-    │                 ┌────▼────┐      ┌─────────────┐  │
-    │                 │Retriever│◀────▶│   Tools     │  │
-    │                 └─────┬───┘      │  ┌──────┐   │  │
-    │                       │          │  │ RAG  │   │  │ (ChromaDB)
-    │                       │          │  └──────┘   │  │
-    │                       │          │  ┌──────┐   │  │
-    │                       │          │  │ Web  │   │  │ (Serper.dev)
-    │                       │          │  └──────┘   │  │
-    │                       │          └─────────────┘  │
-    │                  ┌────▼────┐                      │
-    │                  │  Answer │                      │
-    │                  └─────────┘                      │
-    └─────────────────────┬─────────────────────────────┘
-                          │
-                    ┌─────▼─────┐
-                    │   TTS     │
-                    └───────────┘
-```
-
 ### Agent Pipeline Flow
 
 1. **Router Agent**: Analyzes user input to identify:
