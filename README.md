@@ -20,10 +20,9 @@ A sophisticated multi-agent system built with LangGraph that enables voice-to-vo
 
 ## 🏗️ Architecture
 
-- Python 3.8-3.12
-- ffmpeg (for audio processing)
-- OpenAI API key (for OpenAI models) or Ollama installed locally (for free local models)
-- Serper API Key
+### System Components
+<img width="621" height="1411" alt="agent pipeline drawio" src="https://github.com/user-attachments/assets/d48df720-7651-4684-b7e7-2b455e897e49" />
+
 
 ```
 ┌─────────────────┐
