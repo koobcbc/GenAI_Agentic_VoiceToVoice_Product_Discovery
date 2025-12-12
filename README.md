@@ -21,42 +21,8 @@ A sophisticated multi-agent system built with LangGraph that enables voice-to-vo
 ## 🏗️ Architecture
 
 ### System Components
-<img width="621" height="1411" alt="agent pipeline drawio" src="https://github.com/user-attachments/assets/d48df720-7651-4684-b7e7-2b455e897e49" />
+<img width="631" height="1411" alt="pipeline drawio" src="https://github.com/user-attachments/assets/bd0c7e4f-d02e-4d9f-a831-d334e22a5d82" />
 
-
-```
-┌─────────────────┐
-│  User Input     │ (Text/Voice)
-└────────┬────────┘
-         │
-    ┌────▼────┐
-    │ Whisper │ (ASR - if voice)
-    └────┬────┘
-         │
-    ┌────▼──────────────────────────────────────────────┐
-    │      LangGraph Agent Pipeline                     │
-    │  ┌──────────┐  ┌──────────┐                       │
-    │  │  Router  │─▶│  Planner │                       │
-    │  └──────────┘  └─────┬────┘                       │
-    │                      │                            │
-    │                 ┌────▼────┐      ┌─────────────┐  │
-    │                 │Retriever│◀────▶│   Tools     │  │
-    │                 └─────┬───┘      │  ┌──────┐   │  │
-    │                       │          │  │ RAG  │   │  │ (ChromaDB)
-    │                       │          │  └──────┘   │  │
-    │                       │          │  ┌──────┐   │  │
-    │                       │          │  │ Web  │   │  │ (Serper.dev)
-    │                       │          │  └──────┘   │  │
-    │                       │          └─────────────┘  │
-    │                  ┌────▼────┐                      │
-    │                  │  Answer │                      │
-    │                  └─────────┘                      │
-    └─────────────────────┬─────────────────────────────┘
-                          │
-                    ┌─────▼─────┐
-                    │   TTS     │
-                    └───────────┘
-```
 
 ### Agent Pipeline Flow
 
@@ -240,7 +206,7 @@ GenAI_Agentic_VoiceToVoice_Product_Discovery/
 ├── .gitignore
 │
 ├── 1. data_preprocessing.ipynb   # Clean Amazon dataset → features/ingredients/brand
-├── 2. build_index.ipynb          # Build embeddings + Chroma index
+├── 2. build_index.py             # Build embeddings + Chroma index
 ├── 3. rag_logic.ipynb            # Core RAG Engine
 ├── 4. eval_rag.ipynb             # Recall@K and custom query evaluation
 │
@@ -436,7 +402,7 @@ result = web_search_tool({"query": "puzzle", "max_results": 3})
 
 ### ChromaDB Collection Not Found
 
-- Run `2. build_index.ipynb` to create the collection
+- Run `2. build_index.py` to create the collection
 - Verify `agents/tools/data/chroma_toys/` exists
 - Check collection name matches `products_toys` in `rag_search.py`
 
