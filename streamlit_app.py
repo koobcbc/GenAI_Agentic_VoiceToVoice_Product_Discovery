@@ -6,8 +6,7 @@ import asyncio
 import tempfile
 import numpy as np
 from io import BytesIO
-import html
-import re
+import time
 
 # Optional audio libraries - only needed for recording functionality
 try:
@@ -135,6 +134,9 @@ def record_audio(duration=5):
         recording = sd.rec(int(duration * freq), samplerate=freq, channels=1)
         sd.wait()
         
+        status_placeholder.success("✅ **Recording finished!** Processing transcription...")
+        time.sleep(0.5)
+            
         # Save to temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
             sf.write(tmp_file.name, recording, freq)
@@ -167,7 +169,7 @@ def render_message(text: str):
     st.markdown(linked, unsafe_allow_html=True)
 
 # Main UI
-st.title("AI Agent Assistant")
+st.title("🤖 AI Agent Assistant")
 st.markdown("Ask questions and get intelligent responses powered by LangGraph agents")
 
 # Helper function to get available Ollama models
@@ -255,18 +257,34 @@ with col1:
         duration = st.slider("Recording duration (seconds)", 1, 10, 5)
         record_button = st.button("🎤 Start Recording", type="primary", use_container_width=True)
         
+        # Status placeholder for recording feedback
+        status_placeholder = st.empty()
+        
         if record_button:
-            with st.spinner(f"Recording for {duration} seconds..."):
-                transcription = record_audio(duration)
-                if not transcription.startswith("Error"):
-                    user_input = transcription
-                    st.success(f"Transcribed: {transcription}")
-                else:
-                    st.error(transcription)
-                    user_input = None
+            # Show countdown before recording
+            status_placeholder.info("⏳ **Preparing to record...**")
+            time.sleep(0.5)
+            
+            for i in range(3, 0, -1):
+                status_placeholder.info(f"⏳ **Starting in {i}...**")
+                time.sleep(1)
+            
+            # Show recording started
+            status_placeholder.warning(f"🔴 **RECORDING NOW!** Speak clearly... (Recording for {duration} seconds)")
+            
+            # Record audio
+            transcription = record_audio(duration)
+            
+            if not transcription.startswith("Error"):
+                user_input = transcription
+                status_placeholder.success(f"✅ **Transcription complete!**\n\n**Transcribed text:** {transcription}")
+            else:
+                status_placeholder.error(f"❌ **Error:** {transcription}")
+                user_input = None
         else:
             user_input = None
             submit_button = False
+            status_placeholder.empty()
     
     # Process query
     if (input_method == "Text Input" and submit_button and user_input) or \
@@ -296,24 +314,15 @@ with col1:
     # Display conversation history
     st.markdown("---")
     st.subheader("📜 Conversation History")
-
-    history = st.session_state.conversation_history
-
-    if history:
-        start_idx = len(history) - 1
-        if history[-1]["role"] == "user":
-            with st.chat_message("user"):
-                render_message(history[-1]["content"])
-            start_idx -= 1  
-
-        for i in range(start_idx - 1, -1, -2):
-            user_msg = history[i]
-            assistant_msg = history[i + 1]
-
-            with st.chat_message("user"):
-                render_message(user_msg["content"])
-            with st.chat_message("assistant"):
-                render_message(assistant_msg["content"])
+    
+    if st.session_state.conversation_history:
+        for i, message in enumerate(st.session_state.conversation_history):
+            if message["role"] == "user":
+                with st.chat_message("user"):
+                    st.write(message["content"])
+            else:
+                with st.chat_message("assistant"):
+                    st.write(message["content"])
         
         # Clear history button
         if st.button("Clear History", use_container_width=True):
