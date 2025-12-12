@@ -9,3 +9,10 @@ __pycache__
 *.pyz
 *.pywz
 *.pyzw
+
+# Test notebooks
+mcp_server_test.ipynb
+test.ipynb
+
+# VS Code settings
+.vscode/
