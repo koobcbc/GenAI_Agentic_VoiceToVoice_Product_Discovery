@@ -240,7 +240,7 @@ GenAI_Agentic_VoiceToVoice_Product_Discovery/
 ├── .gitignore
 │
 ├── 1. data_preprocessing.ipynb   # Clean Amazon dataset → features/ingredients/brand
-├── 2. build_index.ipynb          # Build embeddings + Chroma index
+├── 2. build_index.py             # Build embeddings + Chroma index
 ├── 3. rag_logic.ipynb            # Core RAG Engine
 ├── 4. eval_rag.ipynb             # Recall@K and custom query evaluation
 │
