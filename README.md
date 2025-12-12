@@ -214,28 +214,39 @@ This will:
 ```
 GenAI_Agentic_VoiceToVoice_Product_Discovery/
 ├── agents/
-│   ├── __init__.py
-│   ├── main.py                 # CLI entry point for voice-to-voice
-│   ├── mcp_server.py           # FastAPI MCP server
-│   ├── whisper_ars.py          # Whisper ASR implementation
-│   ├── tts.py                  # Text-to-speech implementation
 │   ├── graph/
 │   │   ├── __init__.py
-│   │   └── graph.py            # LangGraph agent pipeline
-│   ├── tools/
-│   │   ├── __init__.py
-│   │   ├── rag_search.py       # RAG search tool (ChromaDB)
-│   │   ├── web_search.py       # Web search tool (Serper.dev)
-│   │   └── data/
-│   │       ├── chroma_toys/    # ChromaDB vector store
-│   │       └── products.parquet # Product data
-│   └── recording/
-│       └── recording0.wav      # Sample audio file
-├── streamlit_app.py            # Streamlit web interface
-├── 2. build_index.ipynb        # Notebook to build product index
-├── requirements.txt            # Python dependencies
-├── requirements_python12.txt   # Python 3.12 specific requirements
-└── README.md                   # This file
+│   │   └── graph.py              # LangGraph multi-agent pipeline
+│   ├── recording/
+│   │   └── recording0.wav        # Sample audio input
+│   └── tools/
+│       ├── data/
+│       │   ├── chroma_toys/      # ChromaDB persistent vector store
+│       │   ├── products.parquet  # Cleaned product metadata
+│       ├── rag_search.py         # RAG search (Chroma + filters)
+│       ├── web_search.py         # Serper.dev web/shopping search tool
+│       └── __init__.py
+│    ├── data_analysis.ipynb       # Exploratory analysis (optional)
+│    ├── llm_judge.ipynb           # LLM evaluation or testing notebook
+│    ├── main.py                   # Potential CLI entry (if used)
+│    ├── mcp_server.py             # FastAPI MCP server exposing rag.search & web.search
+│    ├── tts.py                    # Text-to-speech implementation (gpt-4o-mini-tts)
+│    ├── whisper_ars.ipynb         # Whisper ASR exploration notebook
+│    └── whisper_ars.py            # Whisper “medium” ASR script
+│
+├── .env.example                  # Environment variable template
+├── .gitignore
+│
+├── 1. data_preprocessing.ipynb   # Clean Amazon dataset → features/ingredients/brand
+├── 2. build_index.ipynb          # Build embeddings + Chroma index
+├── 3. rag_search.ipynb           # Standalone RAG testing notebook
+├── 4. eval_rag.ipynb             # Recall@K and custom query evaluation
+│
+├── README.md                     # Project documentation
+├── requirements.txt              # Default environment
+├── requirements_python12.txt     # Python 3.12 compatible environment
+└── streamlit_app.py              # Streamlit UI for voice-to-voice demo
+
 ```
 
 ## 💡 Usage Examples
