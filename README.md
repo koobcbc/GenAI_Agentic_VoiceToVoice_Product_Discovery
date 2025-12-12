@@ -21,7 +21,7 @@ A sophisticated multi-agent system built with LangGraph that enables voice-to-vo
 ## 🏗️ Architecture
 
 ### System Components
-<img width="621" height="1411" alt="agent pipeline drawio" src="https://github.com/user-attachments/assets/d48df720-7651-4684-b7e7-2b455e897e49" />
+<img width="631" height="1411" alt="pipeline drawio" src="https://github.com/user-attachments/assets/bd0c7e4f-d02e-4d9f-a831-d334e22a5d82" />
 
 
 ### Agent Pipeline Flow
