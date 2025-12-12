@@ -19,22 +19,6 @@ SERPER_API_KEY = os.getenv("SERPER_API_KEY")
 SERPER_SEARCH_URL = "https://google.serper.dev/search"
 SERPER_SHOPPING_URL = "https://google.serper.dev/shopping"
 
-def _quality_sort_key(item: Dict[str, Any]):
-    """
-    Sort key for shopping results:
-      - Prefer items with rating
-      - Then higher rating
-      - Then higher rating_count
-    """
-    rating = item.get("rating")
-    rating_count = item.get("rating_count")
-
-    has_rating = 1 if rating is not None else 0
-    return (
-        has_rating,    
-        int(rating_count or 0),  # more reviews is better          
-        float(rating or 0.0),    # higher rating is better
-    )
 
 def _call_serper_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
     """
@@ -60,6 +44,7 @@ def _call_serper_search(query: str, max_results: int = 5) -> List[Dict[str, Any]
         data = resp.json()
 
     results: List[Dict[str, Any]] = []
+
     for item in data.get("organic", [])[:max_results]:
         results.append(
             {
@@ -131,8 +116,8 @@ def _call_serper_shopping(query: str, max_results: int = 5) -> List[Dict[str, An
                 "title": item.get("title"),
                 "url": item.get("link"),
                 "snippet": item.get("snippet"),
-                "price": item.get("price"),           
-                "availability": item.get("availability") or item.get("condition"),
+                "price": item.get("price"),  
+                "availability": item.get("delivery", "available"),       
                 "rating": item.get("rating"),
                 "rating_count": item.get("ratingCount"),
             }
@@ -153,15 +138,9 @@ def _call_serper_shopping(query: str, max_results: int = 5) -> List[Dict[str, An
     if not cleaned_results:
         cleaned_results = results
 
-    sorted_results = sorted(
-        cleaned_results,
-        key=_quality_sort_key,
-        reverse=True,  
-    )
+    return cleaned_results[:max_results]
 
-    return sorted_results[:max_results]
-
-def web_search_tool( query: str, max_results: int = 5, mode: str = "shopping") -> Dict[str, Any]:
+def web_search_tool(query: str, max_results: int = 3, mode: str = "shopping") -> Dict[str, Any]:
     raw_query = query
     cleaned_query = _clean_title_for_search(raw_query)
     query = cleaned_query if cleaned_query else raw_query
@@ -190,7 +169,7 @@ WEB_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
         "max_results": {
             "type": "integer",
             "description": "Maximum number of results to return.",
-            "default": 5,
+            "default": 3,
             "minimum": 1,
             "maximum": 10,
         },

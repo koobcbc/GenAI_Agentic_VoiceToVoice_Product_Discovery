@@ -6,6 +6,8 @@ import asyncio
 import tempfile
 import numpy as np
 from io import BytesIO
+import html
+import re
 
 # Optional audio libraries - only needed for recording functionality
 try:
@@ -152,8 +154,20 @@ def record_audio(duration=5):
     except Exception as e:
         return f"Error recording audio: {str(e)}"
 
+def render_message(text: str):
+    url_pattern = r"(https?://\S+)"
+    
+    def replace_url(match):
+        url = match.group(0)
+        return f"<a href='{html.escape(url)}' target='_blank'>{html.escape(url)}</a>"
+    
+    escaped = html.escape(text)
+    linked = re.sub(url_pattern, replace_url, escaped)
+
+    st.markdown(linked, unsafe_allow_html=True)
+
 # Main UI
-st.title("🤖 AI Agent Assistant")
+st.title("AI Agent Assistant")
 st.markdown("Ask questions and get intelligent responses powered by LangGraph agents")
 
 # Helper function to get available Ollama models
@@ -282,15 +296,24 @@ with col1:
     # Display conversation history
     st.markdown("---")
     st.subheader("📜 Conversation History")
-    
-    if st.session_state.conversation_history:
-        for i, message in enumerate(st.session_state.conversation_history):
-            if message["role"] == "user":
-                with st.chat_message("user"):
-                    st.write(message["content"])
-            else:
-                with st.chat_message("assistant"):
-                    st.write(message["content"])
+
+    history = st.session_state.conversation_history
+
+    if history:
+        start_idx = len(history) - 1
+        if history[-1]["role"] == "user":
+            with st.chat_message("user"):
+                render_message(history[-1]["content"])
+            start_idx -= 1  
+
+        for i in range(start_idx - 1, -1, -2):
+            user_msg = history[i]
+            assistant_msg = history[i + 1]
+
+            with st.chat_message("user"):
+                render_message(user_msg["content"])
+            with st.chat_message("assistant"):
+                render_message(assistant_msg["content"])
         
         # Clear history button
         if st.button("Clear History", use_container_width=True):
