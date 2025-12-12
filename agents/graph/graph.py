@@ -1,11 +1,11 @@
 import asyncio
 from langgraph.graph import StateGraph, END, START
-from langchain_core.tools import tool
 import os
 from dotenv import load_dotenv
 from typing import Optional, Dict, Any, List
 from langchain.agents.factory import create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
+import requests
 from pretty_print import debug_all
 
 SERVER_HOST = '0.0.0.0'
@@ -17,9 +17,6 @@ MCP_SERVERS = {
             "transport": "http",
         },
     }
-
-
-import requests  # to call MCP HTTP server
 
 # ============================================================
 # Environment & LLM
@@ -221,9 +218,9 @@ def planner_node(state: AgentState) -> Dict[str, Any]:
 
 Your responsibilities:
 1) Choose the data source(s): **private**, **live**, or **both**
-    • Use **private** for catalog-style data (product descriptions, ratings, prices, ingredients).
-    • Use **live** for real-time or external information not stored in the private catalog.
     • Use **both** if the request needs a mix of catalog and live data.
+    • Use **private** for catalog-style data (product descriptions, ratings, prices, ingredients).
+    • Use **live** for real-time web search or external information not stored in the private catalog.
 2) Identify which fields must be retrieved.
 3) Determine the comparison criteria used to evaluate options (e.g., price, quality, rating, ingredients, durability).
 
@@ -260,7 +257,10 @@ def get_tool_messages(response):
     return [m for m in msgs if isinstance(m, ToolMessage)]
 
 
-async def async_get_retrieve_result(state: AgentState):
+async def retrieve_node(state: AgentState):
+    print("Retriever NODE Started")
+
+    # final_ai, tool_msgs = await async_get_retrieve_result(state)
     client = MultiServerMCPClient(MCP_SERVERS)
     tools = await client.get_tools()
 
@@ -270,21 +270,28 @@ async def async_get_retrieve_result(state: AgentState):
     )
 
     plan = state.get("plan", "No plan provided")
-    system_prompt = f"""You are the Retrieval Agent. Your job is to fetch the information specified in the plan.
+    query = state.get("input", "No query provided")
+    system_prompt = f"""
+You are the Retrieval Agent. Your role is to fetch EXACTLY the information specified in the plan—no reasoning, no interpretation.
 
-Rules:
-• You MUST use relevant tools to fetch data whenever retrieval is required by the plan.
-• Return ONLY the requested data in raw or minimally structured form (do NOT summarize or interpret it).
-• If the requested data cannot be retrieved, respond EXACTLY: "No data found."
-• If the plan does not require retrieval, respond EXACTLY: "Retrieval not applicable."
+### Rules
+• You MUST retrieve information according to the Data Source specified in the plan.  
+• If Data Source includes **private**, use `rag.search` to query the private catalog.  
+• If Data Source includes **live**, use `web.search` to query the web.  
+• If BOTH sources are listed, call BOTH `rag.search` and `web.search`.  
+• Return ONLY the raw or minimally structured data retrieved—do NOT summarize, explain, or modify it.  
+• If no data can be retrieved, respond EXACTLY with: **"No data found."**  
+• If the plan indicates no retrieval is needed, respond EXACTLY with: **"Retrieval not applicable."**
 
-Plan Details:
+### User Query
+{query}
+
+### Plan Details
 {plan}
 
-Your response MUST follow this format:
-
+### Required Response Format
 * Retrieved data:
-<insert data here or the exact required message>
+<insert raw retrieved data OR the exact required message>
 """
 
     response = await agent.ainvoke({"messages": [{"role": "user", "content": system_prompt}]})
@@ -292,14 +299,6 @@ Your response MUST follow this format:
 
     final_ai = get_final_ai_message(response)
     tool_msgs = get_tool_messages(response)
-
-    return final_ai, tool_msgs
-
-
-async def retrieve_node(state: AgentState):
-    print("Retriever NODE Started")
-
-    final_ai, tool_msgs = await async_get_retrieve_result(state)
 
     return {
         "knowledge": final_ai.content if final_ai else None,
@@ -314,23 +313,32 @@ def answer_critic_node(state: AgentState) -> Dict[str, Any]:
     print("Answer/Critic NODE Started")
     user_input = state["input"]
     knowledge = state.get("knowledge", "No knowledge provided")
-    system_prompt = f"""You are the Answer Critic Agent. Your job is to synthesize a concise, cited recommendation; enforce grounding & safety.
+    system_prompt = f"""
+You are the Answer Critic Agent. Your job is to synthesize a concise, well-grounded, and safe final answer using ONLY the retrieved knowledge.
 
-Rules:
-• Create a final answer that directly addresses the user's request using ONLY the retrieved knowledge.
-• Cite specific data points from the retrieved knowledge to support your answer.
-• If the retrieved knowledge contains safety concerns, flag them clearly in your answer.
+### Rules
+• Produce a final answer that directly responds to the User Request.  
+• You MUST ground all statements in the Retrieved Knowledge — no hallucination, no new facts.  
+• Support your answer by citing specific evidence from the retrieved knowledge in bullet points.  
+• If any safety risks, harmful content, or missing information appear in the retrieved knowledge, explicitly flag them.  
+• If the retrieved knowledge is empty or irrelevant, state: "Insufficient grounded evidence to produce an answer."
 
-User Request:
+### User Request
 {user_input}
 
-Retrieved Knowledge:
+### Retrieved Knowledge
 {knowledge}
 
-Your response MUST follow this format:
+### Required Response Format
 * Final Answer:
-<insert final answer with citations and safety notes if applicable>
+<insert concise, grounded answer with citations and safety warnings as needed>
+
+* Evidence:
+  - <retrieved knowledge 1> [source: rag.search]
+  - <retrieved knowledge 2> [source: web.search]
+  - <retrieved knowledge 3> [source: rag.search]
 """
+    
     response = llm.invoke(system_prompt)
     # print("answer response: ", response.content)
     return {"response": response.content, "done": True}
@@ -365,8 +373,12 @@ app = graph.compile()
 
 if __name__ == "__main__":
     result = asyncio.run(
-        app.ainvoke({"input": "I want to find a stuffed animal for kids less than $30"})
+        app.ainvoke({"input": "I want to find a stuffed animal for kids less than $30 in private catalog and live web search"})
     )
-#     print("\n================ FINAL ANSWER ===============")
-#     print(result.get("response"))
+
+    print("\n================ FINAL rag data ===============")
+    print(result.get('knowledge'))
+
+    print("\n================ FINAL ANSWER ===============")
+    print(result.get("response"))
 #     print("============================================\n")
