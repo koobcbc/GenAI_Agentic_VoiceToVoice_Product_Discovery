@@ -4,10 +4,10 @@ A sophisticated multi-agent system built with LangGraph that enables voice-to-vo
 
 ## 🎬 Demo
 
-<video width="100%" controls>
-  <source src="demo_recording.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+
+https://github.com/user-attachments/assets/d4677b65-df59-4a89-9548-6793060f8fd3
+
+
 
 ## 🎯 Features
 
