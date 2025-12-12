@@ -2,6 +2,10 @@
 
 A sophisticated multi-agent system built with LangGraph that enables voice-to-voice product discovery through an intelligent pipeline of specialized agents. The application processes natural language queries (text or voice) and provides intelligent product recommendations using RAG (Retrieval-Augmented Generation) and web search capabilities.
 
+## 🎬 Demo
+
+https://github.com/user-attachments/assets/demo_recording.mp4
+
 ## 🎯 Features
 
 - **🎤 Voice Input**: Automatic Speech Recognition (ASR) using OpenAI Whisper
