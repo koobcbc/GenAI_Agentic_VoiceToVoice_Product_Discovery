@@ -14,7 +14,7 @@ A multi-agent system built with LangGraph that processes user queries through a 
 
 - Python 3.8-3.12
 - ffmpeg (for audio processing)
-- OpenAI API key or Ollama (for local LLM)
+- OpenAI API key (for OpenAI models) or Ollama installed locally (for free local models)
 - Serper API Key
 
 ## Installation
@@ -45,15 +45,22 @@ sudo apt-get install ffmpeg
 ```env
 OPENAI_API_KEY=your_api_key_here
 MODEL_PROVIDER=openai  # or "ollama" for local models
-OPENAI_MODEL=gpt-4  # optional
-OLLAMA_MODEL=llama3.1  # optional
+OPENAI_MODEL=gpt-4  # optional, default: gpt-4
+OLLAMA_MODEL=llama3.1  # optional, default: llama3.1
+OLLAMA_BASE_URL=http://localhost:11434  # optional, default: http://localhost:11434
 SERPER_API_KEY=your_serper_api_key_here
 MCP_BASE_URL=http://0.0.0.0:8001
 ```
 
 ## Running the Application
 
-Start the Streamlit app:
+1. Start the MCP server (required for tool access):
+```bash
+python agents/mcp_server.py
+```
+The MCP server will run on `http://0.0.0.0:8001`.
+
+2. In a separate terminal, start the Streamlit app:
 ```bash
 streamlit run streamlit_app.py
 ```
@@ -83,7 +90,8 @@ The state object passed between agents in the LangGraph pipeline:
   "done": bool,             # Completion flag
   "intent": Optional[str],   # Task identification from Router
   "plan": Optional[str],    # Retrieval plan from Planner
-  "knowledge": Optional[str] # Retrieved data from Retriever
+  "knowledge": Optional[str], # Retrieved data from Retriever
+  "retrieved_context": Optional[List[Dict[str, Any]]] # Tool messages from retrieval
 }
 ```
 
@@ -94,8 +102,12 @@ The state object passed between agents in the LangGraph pipeline:
 {
   "query": str,                    # Required: Natural language query
   "top_k": int,                    # Optional: Number of results (1-20, default: 3)
-  "max_price": Optional[float],    # Optional: Maximum price filter
-  "min_rating": Optional[float],  # Optional: Minimum rating (0-5)
+  "price": Optional[object],       # Optional: ChromaDB-style price filter
+                                    #   Example: {"$lt": 30} or {"$gte": 10}
+                                    #   Supported operators: $lt, $lte, $gt, $gte, $eq, $in
+  "rating": Optional[object],      # Optional: ChromaDB-style rating filter (0-5)
+                                    #   Example: {"$gte": 3.5}
+                                    #   Supported operators: $lt, $lte, $gt, $gte, $eq
   "brand": Optional[str]           # Optional: Brand name filter
 }
 ```
