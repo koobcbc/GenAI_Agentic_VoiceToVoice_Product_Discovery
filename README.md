@@ -402,7 +402,7 @@ result = web_search_tool({"query": "puzzle", "max_results": 3})
 
 ### ChromaDB Collection Not Found
 
-- Run `2. build_index.ipynb` to create the collection
+- Run `2. build_index.py` to create the collection
 - Verify `agents/tools/data/chroma_toys/` exists
 - Check collection name matches `products_toys` in `rag_search.py`
 
