@@ -5,9 +5,8 @@ A sophisticated multi-agent system built with LangGraph that enables voice-to-vo
 ## 🎬 Demo
 
 This is the demo for showing ASR and TTS feature, receiving grounded product recommendations through natural spoken interaction.
-https://github.com/user-attachments/assets/d4677b65-df59-4a89-9548-6793060f8fd3
 
-
+https://github.com/user-attachments/assets/1a42844d-9c47-4a31-bbbd-796314160055
 
 ## 🎯 Features
 
