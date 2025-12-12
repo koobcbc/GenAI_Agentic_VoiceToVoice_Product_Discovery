@@ -6,6 +6,9 @@ import asyncio
 import tempfile
 import numpy as np
 from io import BytesIO
+import time
+import re
+import html
 
 # Optional audio libraries - only needed for recording functionality
 try:
@@ -70,7 +73,7 @@ def process_query(user_input: str, use_tts: bool = False):
     """Process user query through the graph and optionally use TTS"""
     try:
         # Process through graph
-        result = graph_app.invoke({"input": user_input})
+        result = asyncio.run(graph_app.ainvoke({"input": user_input}))
         response = result.get('response', 'No response generated')
         
         # Optionally run TTS
@@ -133,6 +136,9 @@ def record_audio(duration=5):
         recording = sd.rec(int(duration * freq), samplerate=freq, channels=1)
         sd.wait()
         
+        status_placeholder.success("✅ **Recording finished!** Processing transcription...")
+        time.sleep(0.5)
+            
         # Save to temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
             sf.write(tmp_file.name, recording, freq)
@@ -151,6 +157,30 @@ def record_audio(duration=5):
         return result["text"]
     except Exception as e:
         return f"Error recording audio: {str(e)}"
+
+def render_message(text: str):
+    """
+    Render message text with proper URL handling and word wrapping.
+    Long URLs are made clickable and wrapped to prevent overflow.
+    """
+    # Pattern to match URLs (including long ones)
+    url_pattern = r"(https?://[^\s<>\"']+)"
+    
+    def replace_url(match):
+        url = match.group(0)
+        # Truncate very long URLs for display (keep first 80 chars)
+        display_url = url if len(url) <= 80 else url[:77] + "..."
+        return f'<a href="{html.escape(url)}" target="_blank" style="word-break: break-all; overflow-wrap: break-word;">{html.escape(display_url)}</a>'
+    
+    # Escape HTML first
+    escaped = html.escape(text)
+    # Replace URLs with clickable links
+    linked = re.sub(url_pattern, replace_url, escaped)
+    
+    # Wrap in a div with word-break CSS to handle long URLs
+    wrapped = f'<div style="word-break: break-word; overflow-wrap: break-word; max-width: 100%;">{linked}</div>'
+    
+    st.markdown(wrapped, unsafe_allow_html=True)
 
 # Main UI
 st.title("🤖 AI Agent Assistant")
@@ -241,18 +271,34 @@ with col1:
         duration = st.slider("Recording duration (seconds)", 1, 10, 5)
         record_button = st.button("🎤 Start Recording", type="primary", use_container_width=True)
         
+        # Status placeholder for recording feedback
+        status_placeholder = st.empty()
+        
         if record_button:
-            with st.spinner(f"Recording for {duration} seconds..."):
-                transcription = record_audio(duration)
-                if not transcription.startswith("Error"):
-                    user_input = transcription
-                    st.success(f"Transcribed: {transcription}")
-                else:
-                    st.error(transcription)
-                    user_input = None
+            # Show countdown before recording
+            status_placeholder.info("⏳ **Preparing to record...**")
+            time.sleep(0.5)
+            
+            for i in range(3, 0, -1):
+                status_placeholder.info(f"⏳ **Starting in {i}...**")
+                time.sleep(1)
+            
+            # Show recording started
+            status_placeholder.warning(f"🔴 **RECORDING NOW!** Speak clearly... (Recording for {duration} seconds)")
+            
+            # Record audio
+            transcription = record_audio(duration)
+            
+            if not transcription.startswith("Error"):
+                user_input = transcription
+                status_placeholder.success(f"✅ **Transcription complete!**\n\n**Transcribed text:** {transcription}")
+            else:
+                status_placeholder.error(f"❌ **Error:** {transcription}")
+                user_input = None
         else:
             user_input = None
             submit_button = False
+            status_placeholder.empty()
     
     # Process query
     if (input_method == "Text Input" and submit_button and user_input) or \
@@ -283,14 +329,32 @@ with col1:
     st.markdown("---")
     st.subheader("📜 Conversation History")
     
+    # Add CSS to prevent text overflow in chat messages
+    st.markdown("""
+    <style>
+    .stChatMessage {
+        max-width: 100%;
+    }
+    .stChatMessage > div {
+        word-break: break-word;
+        overflow-wrap: break-word;
+        max-width: 100%;
+    }
+    .stChatMessage a {
+        word-break: break-all;
+        overflow-wrap: break-word;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     if st.session_state.conversation_history:
         for i, message in enumerate(st.session_state.conversation_history):
             if message["role"] == "user":
                 with st.chat_message("user"):
-                    st.write(message["content"])
+                    render_message(message["content"])
             else:
                 with st.chat_message("assistant"):
-                    st.write(message["content"])
+                    render_message(message["content"])
         
         # Clear history button
         if st.button("Clear History", use_container_width=True):
